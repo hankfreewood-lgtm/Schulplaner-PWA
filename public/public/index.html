@@ -26,7 +26,7 @@ header{display:flex;align-items:flex-end;justify-content:space-between;padding:1
 .kick{font-size:12px;font-weight:600;letter-spacing:.9px;text-transform:uppercase;color:var(--mut);margin-bottom:4px}
 h1{font-size:32px;margin:0;font-weight:700;letter-spacing:-1px;line-height:1.05;animation:in .5s both}
 .hr{display:flex;align-items:center;gap:12px;padding-bottom:4px}
-.st{width:9px;height:9px;border-radius:2px;background:var(--ok);animation:pulse 2.6s infinite}
+.st{width:9px;height:9px;border-radius:2px;background:var(--ok);animation:pulse 2.6s infinite;transition:background .3s}.st.off{background:var(--mut);animation:none}.st.busy{background:#ff9f0a;animation:none}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(48,209,88,.45)}50%{box-shadow:0 0 0 6px rgba(48,209,88,0)}}
 .av{width:38px;height:38px;background:var(--card2);display:grid;place-items:center;font-weight:700;font-size:14px}
 main{flex:1;overflow-y:auto;padding:6px 16px 170px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
@@ -179,7 +179,7 @@ nav{left:0;right:auto;top:0;bottom:0;width:var(--sw);border:0;border-right:1px s
 </head>
 <body>
 <div id="app">
-<header><div><div class="kick" id="kick"></div><h1>Schulplaner</h1></div><div class="hr"><div class="st" title="Synchronisiert"></div><div class="av" id="hav">G</div></div></header>
+<header><div><div class="kick" id="kick"></div><h1>Schulplaner</h1></div><div class="hr"><div class="st off" id="st" title="Nicht angemeldet"></div><div class="av" id="hav">G</div></div></header>
 <main id="main"></main>
 <button class="fab" id="fab" aria-label="Neue Aufgabe oder Test">+</button>
 <nav><div class="bar"><i class="ind" id="ind"></i><button class="pill" data-k="hw" onclick="go('hw')" aria-label="Hausaufgaben"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6h10.5M9.5 12h10.5M9.5 18h10.5"/><path d="M3.8 6.2l1.3 1.3 2.3-2.5M3.8 12.2l1.3 1.3 2.3-2.5M3.8 18.2l1.3 1.3 2.3-2.5"/></svg><span>Hausaufgaben</span></button><button class="pill" data-k="tests" onclick="go('tests')" aria-label="Tests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Tests</span></button><button class="pill" data-k="focus" onclick="go('focus')" aria-label="Fokus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.5M9.5 3h5"/></svg><span>Fokus</span></button><button class="pill" data-k="pf" onclick="go('pf')" aria-label="Profil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.7"/><path d="M4.5 20c.8-3.8 3.9-5.7 7.5-5.7s6.7 1.9 7.5 5.7"/></svg><span>Profil</span></button></div></nav>
@@ -200,9 +200,20 @@ function seed(){return{
 subjects:[{n:'Mathe',c:PAL[0]},{n:'Deutsch',c:PAL[1]},{n:'Physik',c:PAL[2]},{n:'Englisch',c:PAL[3]},{n:'Geschichte',c:PAL[4]},{n:'Latein',c:PAL[5]},{n:'Biologie',c:PAL[6]}],
 hw:[{id:uid(),t:'Aufgaben S. 84, Nr. 3–6',s:'Mathe',d:off(1),done:false},{id:uid(),t:'Vokabeln Lektion 27',s:'Latein',d:off(2),done:false},{id:uid(),t:'Standbild proben',s:'Deutsch',d:off(3),done:false},{id:uid(),t:'Protokoll Induktion',s:'Physik',d:off(-1),done:false},{id:uid(),t:'Worksheet 2 Mediation',s:'Englisch',d:off(0),done:true}],
 tests:[{id:uid(),t:'BLF Mathe',s:'Mathe',d:off(6)},{id:uid(),t:'Klausur Geschichte',s:'Geschichte',d:off(11)},{id:uid(),t:'Vokabeltest',s:'Englisch',d:off(-6)}]}}
-let S;try{S=JSON.parse(localStorage.getItem('schulplaner'))}catch(e){}
-S=S||seed();S.pomo=S.pomo||{d:'',n:0};
-const save=()=>{try{localStorage.setItem('schulplaner',JSON.stringify(S))}catch(e){}};
+const load=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}};
+const norm=d=>{d=d||{};d.subjects=Array.isArray(d.subjects)?d.subjects:[];d.hw=Array.isArray(d.hw)?d.hw:[];d.tests=Array.isArray(d.tests)?d.tests:[];d.pomo=d.pomo&&typeof d.pomo==='object'?d.pomo:{d:'',n:0};return d};
+let LK='schulplaner',cloud=null,syncSt='off',syncMsg='';
+let S=load(LK);S=S?norm(S):seed();
+const save=()=>{try{localStorage.setItem(LK,JSON.stringify(S))}catch(e){}if(cloud)cloud.push()};
+/* Cloud-Anbindung (vom Firebase-Modul gesetzt) */
+window.setCloud=c=>{cloud=c};
+window.getState=()=>JSON.parse(JSON.stringify(S));
+window.useStore=uid=>{
+if(uid){const guest=LK==='schulplaner'?S:null;LK='schulplaner:u:'+uid;const c=load(LK);S=c?norm(c):norm(JSON.parse(JSON.stringify(guest||S)));if(!c)save()}
+else{LK='schulplaner';const g=load(LK);S=g?norm(g):seed()}
+T.sel=null;sub=null;fresh=true;render()};
+window.applyRemote=d=>{S=norm(d);try{localStorage.setItem(LK,JSON.stringify(S))}catch(e){}render()};
+window.setSync=(st,msg)=>{syncSt=st;syncMsg=msg||'';const e=$('st');if(e){e.className='st'+(st==='ok'?'':st==='busy'?' busy':' off');e.title=st==='ok'?'Synchronisiert':st==='busy'?'Wird synchronisiert …':'Nicht angemeldet'}if(tab==='pf'&&!sub)render()};
 let tab='hw',sub=null,fresh=true,doneOpen=false,sd=0;
 const col=n=>(S.subjects.find(x=>x.n===n)||{c:'#888'}).c;
 const past=t=>new Date(t.d+'T23:59')<new Date();
@@ -212,7 +223,7 @@ $('kick').textContent=new Date().toLocaleDateString('de-DE',{weekday:'long',day:
 /* Auth-Status (wird vom Firebase-Modul unten gesetzt) */
 let U=null,authMsg='',authBusy=false;
 const avHtml=()=>U&&U.photo?`<img src="${esc(U.photo)}" alt="" referrerpolicy="no-referrer">`:esc(((U&&(U.name||U.email))||'G').trim().charAt(0).toUpperCase()||'G');
-const authBtn=()=>(U?`<button class="go sec dng" style="width:100%;margin-top:16px" onclick="signOutU()">Abmelden</button>`:`<button class="go" style="margin-top:16px" onclick="signIn()" ${authBusy?'disabled':''}>${authBusy?'Anmelden …':'Mit Google anmelden'}</button>`)+`<div class="hint" style="color:var(--mut)">${esc(authMsg)}</div>`;
+const authBtn=()=>(U?`<button class="go sec dng" style="width:100%;margin-top:16px" onclick="signOutU()">Abmelden</button>`:`<button class="go" style="margin-top:16px" onclick="signIn()" ${authBusy?'disabled':''}>${authBusy?'Anmelden …':'Mit Google anmelden'}</button>`)+`<div class="hint" style="color:var(--mut)">${esc(authMsg||syncMsg)}</div>`;
 function setUser(u){U=u?{name:u.displayName||'',email:u.email||'',photo:u.photoURL||''}:null;authBusy=false;authMsg='';$('hav').innerHTML=avHtml();if(tab==='pf'&&!sub)render()}
 function setAuth(msg,busy){authMsg=msg||'';authBusy=!!busy;if(tab==='pf'&&!sub)render()}
 function hwCard(h,i){const late=!h.done&&h.d<off(0),td=h.d===off(0);
@@ -240,7 +251,7 @@ const v=S.tests.filter(past).sort((a,b)=>b.d.localeCompare(a.d));
 const back='<button class="back" onclick="sb(null)">‹ Profil</button>';
 if(sub==='hist')h=back+`<h2 style="margin-top:8px">Verlauf · vergangene Tests</h2>`+(v.length?`<div class="grid">${v.map((t,i)=>tCard(t,i,1)).join('')}</div>`:'<div class="empty" style="padding:20px">Noch nichts im Verlauf</div>');
 else if(sub==='subj')h=back+`<h2 style="margin-top:8px">Fächer</h2>`+'<div class="grid">'+S.subjects.map((s,i)=>`<div class="rw" data-k="subj" data-i="${i}" style="--i:${i}"><div class="swa"></div><div class="sub"><button class="sw" style="--c:${s.c}" onclick="openSubj(${i})" aria-label="Farbe ändern"></button><button class="nm" onclick="openSubj(${i})">${esc(s.n)}</button><button class="del" onclick="delSub(${i})" aria-label="Fach löschen">${ICON.tr}</button></div></div>`).join('')+'</div>'+`<button class="addrow" onclick="openSubj(-1)">+ Fach hinzufügen</button>`;
-else h=`<div class="pf"><div class="av">${avHtml()}</div><div style="min-width:0"><div style="font-weight:700;font-size:18px">${U?esc(U.name||'Angemeldet'):'Gast'}</div><div class="s">${U?esc(U.email):'Nicht angemeldet · Daten nur auf diesem Gerät'}</div></div></div><div class="grid" style="margin-top:16px"><button class="lr" style="--i:1" onclick="sb('hist')"><span>Verlauf</span><em>${v.length}</em><b>›</b></button><button class="lr" style="--i:2" onclick="sb('subj')"><span>Fächer</span><em>${S.subjects.length}</em><b>›</b></button></div>${authBtn()}`}
+else h=`<div class="pf"><div class="av">${avHtml()}</div><div style="min-width:0"><div style="font-weight:700;font-size:18px">${U?esc(U.name||'Angemeldet'):'Gast'}</div><div class="s">${U?esc(U.email):'Nicht angemeldet · Daten nur auf diesem Gerät'}</div>${U?`<div class="s" style="margin-top:3px">${syncSt==='ok'?'Mit deinem Konto synchronisiert':syncSt==='busy'?'Wird gespeichert …':'Verbinde …'}</div>`:''}</div></div><div class="grid" style="margin-top:16px"><button class="lr" style="--i:1" onclick="sb('hist')"><span>Verlauf</span><em>${v.length}</em><b>›</b></button><button class="lr" style="--i:2" onclick="sb('subj')"><span>Fächer</span><em>${S.subjects.length}</em><b>›</b></button></div>${authBtn()}`}
 m.className=fresh?'fresh'+(sd?' x':''):'';m.style.setProperty('--dx',sd);sd=0;fresh=false;m.innerHTML=h;m.scrollTop=sc;
 const ks=['hw','tests','focus','pf'];
 document.querySelectorAll('.pill').forEach(p=>p.classList.toggle('on',p.dataset.k===tab));
@@ -316,7 +327,7 @@ $('ct').textContent=MON[m]+' '+y;$('cgr').innerHTML=c}
 function mv(n){M.view=new Date(M.view.getFullYear(),M.view.getMonth()+n,1);fillCal()}
 function pick(s){M.d=s;closeCal();upM()}
 function submitM(){
-if(M.edit){const it=S[M.edit.k].find(x=>x.id===M.edit.id);Object.assign(it,{t:M.t.trim(),s:M.s,d:M.d});save();closeM();render();return}
+if(M.edit){const it=S[M.edit.k].find(x=>x.id===M.edit.id);if(!it){closeM();render();return}Object.assign(it,{t:M.t.trim(),s:M.s,d:M.d});save();closeM();render();return}
 if(M.type==='hw')S.hw.push({id:uid(),t:M.t.trim(),s:M.s,d:M.d,done:false});
 else S.tests.push({id:uid(),t:M.t.trim(),s:M.s,d:M.d});
 save();closeM();tab=M.type==='hw'?'hw':'tests';sub=null;fresh=true;render()}
@@ -393,7 +404,7 @@ $('fab').onclick=()=>openModal();
 render();
 </script>
 <script type="module">
-/* Firebase Google-Login. Trage hier deine Werte aus der Firebase-Konsole ein. */
+/* Firebase: Google-Login + Cloud-Speicherung (Firestore) */
 const firebaseConfig={
   apiKey: "AIzaSyC5U3Hp31JpD4I_yb8Br3X5DUE-ozjPycA" ,
   authDomain:"schulplaner-pwa.firebaseapp.com",
@@ -407,11 +418,44 @@ window.signOutU=()=>{};
 if(ready){try{
   const{initializeApp}=await import(B+'firebase-app.js');
   const A=await import(B+'firebase-auth.js');
-  const auth=A.getAuth(initializeApp(firebaseConfig));
+  const F=await import(B+'firebase-firestore.js');
+  const app=initializeApp(firebaseConfig);
+  const auth=A.getAuth(app);
   auth.languageCode='de';
+  let db;
+  try{db=F.initializeFirestore(app,{localCache:F.persistentLocalCache({tabManager:F.persistentMultipleTabManager()})})}
+  catch(e){db=F.getFirestore(app)}
   const prov=new A.GoogleAuthProvider();prov.setCustomParameters({prompt:'select_account'});
   const msg=e=>e&&(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request')?'':'Anmeldung fehlgeschlagen ('+((e&&e.code)||'Fehler')+')';
-  A.onAuthStateChanged(auth,u=>setUser(u));
+
+  /* Sync: ein Dokument pro Nutzer unter users/{uid}; Änderungen werden gebündelt gespeichert, andere Geräte aktualisieren live */
+  let ref=null,unsub=null,timer=null,got=false;
+  const fail=e=>setSync('busy',e&&e.code==='permission-denied'?'Speichern nicht erlaubt. Prüfe die Firestore-Regeln.':'Speichern gerade nicht möglich. Wird später erneut versucht.');
+  const flush=()=>{clearTimeout(timer);timer=null;if(!ref)return;
+    setSync('busy');
+    F.setDoc(ref,{state:window.getState(),updatedAt:F.serverTimestamp()}).then(()=>{if(!timer)setSync('ok')}).catch(fail)};
+  const cloud={push(){if(!ref||!got)return;setSync('busy');clearTimeout(timer);timer=setTimeout(flush,700)}};
+  addEventListener('visibilitychange',()=>{if(document.hidden&&timer)flush()});
+  addEventListener('pagehide',()=>{if(timer)flush()});
+  const onSnap=snap=>{
+    if(!snap.exists()){
+      if(snap.metadata.fromCache)return;
+      got=true;flush();return}
+    got=true;
+    if(snap.metadata.hasPendingWrites||timer){return}
+    window.applyRemote(snap.data().state);
+    if(!snap.metadata.fromCache)setSync('ok')};
+  const stop=()=>{if(unsub){unsub();unsub=null}clearTimeout(timer);timer=null;ref=null;got=false;window.cloud=null};
+
+  A.onAuthStateChanged(auth,u=>{
+    stop();setUser(u);
+    if(u){
+      window.useStore(u.uid);
+      setSync('busy');
+      ref=F.doc(db,'users',u.uid);
+      setCloud(cloud);
+      unsub=F.onSnapshot(ref,{includeMetadataChanges:true},onSnap,fail)}
+    else{setCloud(null);window.useStore(null);setSync('off')}});
   A.getRedirectResult(auth).catch(e=>setAuth(msg(e)));
   window.signIn=async()=>{setAuth('',true);
     try{await A.signInWithPopup(auth,prov)}

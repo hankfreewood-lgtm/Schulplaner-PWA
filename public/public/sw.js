@@ -1,4 +1,4 @@
-const C = 'schulplaner-v1';
+const C = 'schulplaner-v2';
 const SHELL = ['./', 'index.html', 'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -16,6 +16,14 @@ self.addEventListener('activate', e => {
 // Network-first für eigene Dateien: neue Deploys kommen sofort an, offline greift der Cache.
 self.addEventListener('fetch', e => {
   const r = e.request, u = new URL(r.url);
+  // Firebase-Bibliotheken: einmal laden, danach auch offline verfügbar (für Login und Sync).
+  if (r.method === 'GET' && u.hostname === 'www.gstatic.com' && u.pathname.startsWith('/firebasejs/')) {
+    e.respondWith(caches.match(r).then(m => m || fetch(r).then(res => {
+      if (res.ok) { const cp = res.clone(); caches.open(C).then(c => c.put(r, cp)); }
+      return res;
+    })));
+    return;
+  }
   if (r.method !== 'GET' || u.origin !== location.origin || u.pathname.startsWith('/__/')) return;
   e.respondWith(
     fetch(r).then(res => {
